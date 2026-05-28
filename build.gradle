@@ -16,9 +16,9 @@ buildscript {
 
 allprojects {
     repositories {
+        google()
         maven { url 'https://raw.githubusercontent.com/itlaonong/maven-repo/master/' }
         maven { url 'https://maven.aliyun.com/repository/public' }
-        google()
         jcenter()
     }
 }
