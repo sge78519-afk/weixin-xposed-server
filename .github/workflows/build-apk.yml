@@ -1,8 +1,6 @@
-name: Build APK
+name: Build Signed APK
 
 on:
-  push:
-    branches: [master, main]
   workflow_dispatch:
 
 jobs:
@@ -25,11 +23,17 @@ jobs:
           java-version: '8'
           distribution: 'temurin'
 
-      - name: Replace jcenter with mavenCentral
+      - name: Replace jcenter + fix Gradle
         run: |
           sed -i 's/jcenter()/mavenCentral()/g' build.gradle
-          # fix gradle wrapper for JDK 8 compatibility
           echo "org.gradle.jvmargs=-Xmx1024m" >> gradle.properties
+
+      - name: Generate debug keystore
+        run: |
+          keytool -genkey -v -keystore debug.keystore -alias androiddebugkey \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass android -keypass android \
+            -dname "CN=Debug, OU=Dev, O=Dev, L=City, ST=State, C=CN"
 
       - name: Grant gradlew execute permission
         run: chmod +x gradlew
@@ -37,8 +41,15 @@ jobs:
       - name: Build APK
         run: ./gradlew assembleRelease
 
+      - name: Sign APK
+        run: |
+          APK=$(find app/build/outputs/apk/release -name "*.apk" | head -1)
+          echo "Unsigned APK: $APK"
+          $ANDROID_HOME/build-tools/28.0.3/zipalign -v 4 "$APK" app/build/outputs/apk/release/aligned.apk
+          $ANDROID_HOME/build-tools/28.0.3/apksigner sign --ks debug.keystore --ks-pass pass:android --ks-key-alias androiddebugkey --key-pass pass:android app/build/outputs/apk/release/aligned.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: weixin-xposed-server-apk
-          path: app/build/outputs/apk/release/*.apk
+          name: weixin-xposed-server-signed
+          path: app/build/outputs/apk/release/aligned.apk
